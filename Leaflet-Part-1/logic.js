@@ -1,90 +1,107 @@
-// Store our API endpoint as queryUrl.
-let queryUrl = "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2021-01-01&endtime=2021-01-02&maxlongitude=-69.52148437&minlongitude=-123.83789062&maxlatitude=48.74894534&minlatitude=25.16517337";
-function createMap(earthquakes) {
+let queryUrl = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson";
 
-// Attempt at markers changing size and color. 
-function markerSize(feature.properties.mag) {
-  return Math.sqrt(feature.properties.mag) * 500;
-}
-function markerColor(feature.properties.mag) {
-  if (mag < 3 ){
-    return "green"
-  } else {
-    return "red"
-  }
-}
-
-mag.forEach(mag => {
-  L.circle(feature.properties.place, {
-    fillOpacity: 1,
-    color: "green",
-    fillColor: markerColor(feature.properties.mag),
-    radius: markerSize(feature.properties.mag)
-  }).addTo(myMap)
-  .bindPopup(`<h3>${feature.properties.time}</h3><hr><p>${new Date(feature.properties.mag)}</p>`)
+// The tile layer.
+var street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 });
 
+// We create the map object with options.
+var myMap = L.map("map", {
+  center: [
+    37, -95
+  ],
+  zoom: 5.25,
+});
 
-  // Create the base layers.
-  var street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-  })
+// Street tile layer to the map (from earlier activity).
+street.addTo(myMap);
 
-  var topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-    attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
-  });
+// Here we make an AJAX call that retrieves our earthquake geoJSON data.
+d3.json(queryUrl).then(function (data) {
 
-  // Create a baseMaps object.
-  var baseMaps = {
-    "Street Map": street,
-    "Topographic Map": topo
-  };
+  // Function for plotting the earthquakes by depth(color) and magnitude(circle size).
+  // to calculate the color and radius.
+  function quakeInfo(feature) {
+    return {
+      opacity: .75,
+      fillOpacity: .85,
+      fillColor: depthColor(feature.geometry.coordinates[2]),
+      radius: magRadius(feature.properties.mag),
+      weight: 0.75
+    };
+  }
 
-  // Create an overlay object to hold our overlay.
-  var overlayMaps = {
-    Earthquakes: earthquakes
-  };
+  // Function shows color of earthquake marker based on depth value.
+  // https://www.w3schools.com/colors/colors_picker.asp
+  function depthColor(depth) {
+    switch (true) {
+      case depth > 90:
+        return "#ff0000";
+      case depth > 70:
+        return "#ff8000";
+      case depth > 50:
+        return "#ffbf00";
+      case depth > 30:
+        return "#ffff00";
+      case depth > 10:
+        return "#bfff00";
+      default:
+        return "#00ff80";
+    }
+  }
 
-  // Create our map, giving it the streetmap and earthquakes layers to display on load.
-  var myMap = L.map("map", {
-    center: [
-      37.09, -95.71
-    ],
-    zoom: 5,
-    layers: [street, earthquakes]
-  });
+  // This function determines the radius of the marker based on magnitude.
+  function magRadius(magnitude) {
+    if (magnitude === 0) {
+      return 1;
+    }
+    return magnitude * 7.5;
+  }
 
-  // Create a layer control.
-  // Pass it our baseMaps and overlayMaps.
-  // Add the layer control to the map.
-  L.control.layers(baseMaps, overlayMaps, {
-    collapsed: false
+  L.geoJson(data, {
+    // We turn each feature into a circleMarker.
+    pointToLayer: function (feature, latlng) {
+      return L.circleMarker(latlng);
+    },
+    // Style as outlined above for each marker.
+    style: quakeInfo,
+    // Popups for each marker.
+    onEachFeature: function (feature, layer) {
+      layer.bindPopup(
+        "<br>Time: " + new Date (feature.properties.time)
+        + "<hr><br>Location: " + feature.properties.place
+        + "<hr><br>Magnitude: " + feature.properties.mag
+        + "<hr><br>Depth: " + feature.geometry.coordinates[2]
+      );
+    }
   }).addTo(myMap);
 
-}
 
+  // Following code found in documentation for the legend: https://leafletjs.com/examples/choropleth/
 
-// Perform a GET request to the query URL/
-d3.json(queryUrl).then(function (data) {
-  // Once we get a response, send the data.features object to the createFeatures function.
-  createFeatures(data.features);
+  var legend = L.control({position: "bottomleft"});
+
+  legend.onAdd = function () {
+    var div = L.DomUtil.create("div", "info legend"),
+
+      grades = [-10, 10, 30, 50, 70, 90],
+      colors = [
+        "#ff0000",
+        "#ff8000",
+        "#ffbf00",
+        "#ffff00",
+        "#bfff00",
+        "#00ff80"
+      ];
+
+    for (var i = 0; i < grades.length; i++) {
+      div.innerHTML += 
+        "<i style='background: " + colors[i] + "'></i> " +
+        grades[i] + (grades[i + 1] ? "&ndash;" + grades[i + 1] + "<br>" : "+");
+    }
+    
+    return div;
+  };
+
+  legend.addTo(myMap);
 });
-
-function createFeatures(earthquakeData) {
-
-  // Define a function that we want to run once for each feature in the features array.
-  // Give each feature a popup that describes the place and time of the earthquake.
-  function onEachFeature(feature, layer) {
-    layer.bindPopup(`<h3>${feature.properties.time}</h3><hr><p>${new Date(feature.properties.mag)}</p>`);
-  }
-
-  // Create a GeoJSON layer that contains the features array on the earthquakeData object.
-  // Run the onEachFeature function once for each piece of data in the array.
-  var earthquakes = L.geoJSON(earthquakeData, {
-    onEachFeature: onEachFeature
-  });
-
-  // Send our earthquakes layer to the createMap function/
-  createMap(earthquakes);
-}
-

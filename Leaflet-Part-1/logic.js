@@ -19,18 +19,6 @@ street.addTo(myMap);
 // Here we make an AJAX call that retrieves our earthquake geoJSON data.
 d3.json(queryUrl).then(function (data) {
 
-  // Function for plotting the earthquakes by depth(color) and magnitude(circle size).
-  // to calculate the color and radius.
-  function quakeInfo(feature) {
-    return {
-      opacity: .75,
-      fillOpacity: .85,
-      fillColor: depthColor(feature.geometry.coordinates[2]),
-      radius: magRadius(feature.properties.mag),
-      weight: 0.75
-    };
-  }
-
   // Function shows color of earthquake marker based on depth value.
   // https://www.w3schools.com/colors/colors_picker.asp
   function depthColor(depth) {
@@ -56,6 +44,19 @@ d3.json(queryUrl).then(function (data) {
       return 1;
     }
     return magnitude * 7.5;
+  }
+
+  // Function for plotting the earthquakes by depth(color) and magnitude(circle size).
+  // to calculate the color and radius.
+  function quakeInfo(feature) {
+    return {
+      color: "#4d0000",
+      opacity: .75,
+      fillOpacity: .85,
+      fillColor: depthColor(feature.geometry.coordinates[2]),
+      radius: magRadius(feature.properties.mag),
+      weight: 0.75
+    };
   }
 
   L.geoJson(data, {
